@@ -1,3 +1,5 @@
+![menu](https://github.com/user-attachments/assets/aad148ac-08ff-4312-824d-f3eca08e64b4)
+
 # ⚠️ DANGER! WARNING! ALARMA! ⚠️
 
 Deez code wuz 100% fully vibe buzzed w/ muh dawg Claudio @ tha Cursor studio.
