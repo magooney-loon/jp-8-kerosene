@@ -1,0 +1,387 @@
+# Flight System Refactoring Plan
+
+## Current Architecture Analysis
+
+After examining the current codebase, I've identified the following components and their interactions:
+
+### Core Files and Relationships
+
+1. **demoScene.svelte (241 lines)**
+   - Main orchestration component
+   - Initializes the flight system
+   - Manages the main game loop via Threlte's useFrame
+   - Imports from `cameraController.ts` and instantiates state
+   - Connects all components together
+
+2. **cameraController.ts (1609 lines)**
+   - Core flight physics and calculations
+   - Houses all flight model constants (FLIGHT_MODEL)
+   - Handles complex physics calculations (updateShip)
+   - Controls camera positioning and effects (updateCamera)
+   - Calculates HUD data (calculateFlightData)
+   - Handles input binding setup (setupControls)
+   - Manages auto-stabilization system physics
+
+3. **demoSpaceship.svelte (1825 lines)**
+   - Renders the ship model using Threlte
+   - Manages visual effects (engine glow, afterburner)
+   - Handles minigun firing and projectile physics
+   - Detects stall conditions and triggers auto-stabilization
+   - Manages audio effects through Threlte's audio system
+
+4. **FighterHUD.svelte (1749 lines)**
+   - Renders the HUD interface overlay
+   - Shows flight data, warnings, and status indicators
+   - Visualizes auto-stabilization system status
+   - Contains complex drawing code for HUD elements
+
+5. **hudStore.ts (50 lines)**
+   - Defines the HUD data interface
+   - Creates a Svelte store for HUD state
+   - Provides reactive state for the HUD component
+
+6. **demoTerrain.svelte (84 lines)**
+   - Renders the terrain using Threlte
+   - Receives world offset from ship for positioning
+
+### Current Data Flow
+
+1. **State Initialization:**
+   - `demoScene.svelte` initializes `shipState` and `controls` from `cameraController.ts`
+   - Ship and HUD components receive state via props
+
+2. **Update Cycle:**
+   - `demoScene.svelte` runs the main update loop with `useFrame`
+   - Calls `updateShip`, `updateCamera`, and `calculateFlightData` from `cameraController.ts`
+   - Updates `hudState` store with new flight data
+   - Binds rotation, engine power, etc. to `demoSpaceship.svelte`
+
+3. **Auto-stabilization System:**
+   - `demoSpaceship.svelte` detects stall conditions
+   - Sets state on `(window as any).shipState` for `cameraController.ts` to access
+   - `cameraController.ts` applies physics corrections during stabilization
+   - State is synchronized back to HUD via the hudState store
+
+4. **Input Handling:**
+   - Controls are set up in `demoScene.svelte` via `setupControls` from `cameraController.ts`
+   - Control state is passed to physics update functions
+
+## Current Issues
+
+1. **Monolithic Structure:**
+   - `cameraController.ts` handles too many responsibilities (1609 lines)
+   - `demoSpaceship.svelte` also has too many responsibilities (1825 lines)
+   - `FighterHUD.svelte` is oversized (1749 lines)
+
+2. **State Management Challenges:**
+   - `window.shipState` is used to share data between components
+   - No clear reactive store architecture except for HUD
+   - Manual synchronization of state between components
+
+3. **Tangled Component Dependencies:**
+   - `demoScene.svelte` coordinates everything, creating tight coupling
+   - `cameraController.ts` accesses window object for state
+   - Physics code and visual code are intertwined
+
+4. **Poor Separation of Concerns:**
+   - Physics calculations mixed with rendering code
+   - Input handling tied to physics
+   - Auto-stabilization split across multiple files
+
+## Proposed Architecture
+
+### 1. Core Module Structure with SvelteKit + Threlte
+
+Split into functional modules with SvelteKit organization:
+
+```
+src/lib/demo/flight/
+├── constants/
+│   ├── flightModel.ts           // Flight model constants
+│   └── visualEffects.ts         // Visual effect constants
+├── types/
+│   ├── controls.ts              // Input control interfaces
+│   └── state.ts                 // Ship state interfaces
+├── stores/                      // Svelte stores for reactive state
+│   ├── shipState.ts             // Core ship state store
+│   ├── controlState.ts          // Input control state store
+│   ├── effectsState.ts          // Visual effects state store
+│   ├── hudState.ts              // HUD data state store
+│   └── autoStabilization.ts     // Auto-stabilization state store
+├── components/                  // Svelte + Threlte components
+│   ├── FlightScene.svelte       // Main scene component (replaces demoScene)
+│   ├── controls/
+│   │   └── FlightControls.svelte   // Input controls component
+│   ├── physics/
+│   │   ├── ShipPhysics.svelte      // Physics update component
+│   │   └── StabilizationSystem.svelte // Auto-stabilization component
+│   ├── visuals/
+│   │   ├── Spaceship.svelte       // Ship model and effects (replaces demoSpaceship)
+│   │   ├── Terrain.svelte         // Terrain component (replaces demoTerrain)
+│   │   ├── WeaponEffects.svelte   // Weapon firing effects
+│   │   └── EngineEffects.svelte   // Engine visual effects
+│   ├── camera/
+│   │   └── FlightCamera.svelte    // Camera control component
+│   └── hud/
+│       ├── HUD.svelte             // Main HUD container (replaces FighterHUD)
+│       ├── AttitudeIndicator.svelte // Individual HUD elements
+│       ├── SpeedIndicator.svelte
+│       └── WarningSystem.svelte
+├── systems/                     // Core logic systems
+│   ├── physics.ts               // Core flight physics
+│   ├── controls.ts              // Input handling system
+│   ├── camera.ts                // Camera positioning & effects
+│   ├── stabilization.ts         // Auto-stabilization system
+│   ├── weapons.ts               // Weapon systems
+│   ├── effects.ts               // Visual effects manager
+│   └── hud.ts                   // HUD data calculator
+└── utils/
+    └── math.ts                  // Math utility functions
+```
+
+### 2. Reactive State Architecture
+
+Replace manual state management with Svelte stores for reactive updates:
+
+```typescript
+// shipState.ts
+import { writable, derived } from 'svelte/store';
+import type { ShipState } from '../types/state';
+import { FLIGHT_MODEL } from '../constants/flightModel';
+
+// Create the base ship state store
+export const shipState = writable<ShipState>({
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationalVelocity: { x: 0, y: 0, z: 0 },
+  virtualVelocity: { x: 0, y: 0, z: 0 },
+  speed: 0,
+  // ... other properties
+});
+
+// Create derived stores for specific aspects
+export const shipRotation = derived(shipState, $state => $state.rotation);
+export const shipSpeed = derived(shipState, $state => $state.speed);
+export const afterburnerEffect = derived(shipState, $state => $state.afterburnerEffect);
+
+// Auto-stabilization store
+export const stabilizationState = writable({
+  isAutoStabilizing: false,
+  autoStabilizationProgress: 0,
+  recoveryThrustActive: false,
+  stallDetected: false,
+  stallTimeStart: 0
+});
+
+// Store update functions
+export function updateShipPhysics(delta: number): void {
+  shipState.update(state => {
+    // Physics calculations...
+    return state;
+  });
+}
+```
+
+### 3. Component Refactoring
+
+Break current components into smaller, more focused ones:
+
+#### 1. FlightScene.svelte (Replaces demoScene.svelte)
+```typescript
+<!-- FlightScene.svelte -->
+<script lang="ts">
+  import { T, Canvas, useFrame } from '@threlte/core';
+  import { shipState, controlState, stabilizationState } from '../stores';
+  import { updatePhysics } from '../systems/physics';
+  import { get } from 'svelte/store';
+  import Spaceship from './visuals/Spaceship.svelte';
+  import Terrain from './visuals/Terrain.svelte';
+  import FlightCamera from './camera/FlightCamera.svelte';
+  import HUD from './hud/HUD.svelte';
+  import ShipPhysics from './physics/ShipPhysics.svelte';
+  import FlightControls from './controls/FlightControls.svelte';
+  
+  // Main game loop
+  useFrame((state, delta) => {
+    // Physics updates handled by ShipPhysics component
+  });
+</script>
+
+<Canvas>
+  <FlightCamera />
+  <T.AmbientLight intensity={0.3} color="#c5d8ff" />
+  <T.DirectionalLight intensity={1.2} position={[50, 100, 50]} castShadow={false} />
+  
+  <ShipPhysics />
+  <Terrain />
+  <Spaceship />
+  <FlightControls />
+</Canvas>
+
+<HUD />
+```
+
+#### 2. ShipPhysics.svelte
+```typescript
+<!-- ShipPhysics.svelte -->
+<script lang="ts">
+  import { useFrame } from '@threlte/core';
+  import { shipState, controlState, stabilizationState, hudState } from '../stores';
+  import { updatePhysics } from '../systems/physics';
+  import { updateStabilization } from '../systems/stabilization';
+  import { calculateHudData } from '../systems/hud';
+  import { get } from 'svelte/store';
+  
+  useFrame((state, delta) => {
+    // Cap delta for stable physics
+    const cappedDelta = Math.min(delta, 0.05);
+    
+    // Get current state
+    const currentShipState = get(shipState);
+    const currentControls = get(controlState);
+    const currentStabilization = get(stabilizationState);
+    
+    // Update physics
+    const newShipState = updatePhysics(
+      currentShipState, 
+      currentControls, 
+      cappedDelta,
+      currentStabilization
+    );
+    
+    // Update stabilization system
+    const newStabilizationState = updateStabilization(
+      newShipState,
+      currentStabilization,
+      cappedDelta
+    );
+    
+    // Calculate HUD data
+    const hudData = calculateHudData(newShipState, newStabilizationState, currentControls);
+    
+    // Update stores
+    shipState.set(newShipState);
+    stabilizationState.set(newStabilizationState);
+    hudState.set(hudData);
+  });
+</script>
+```
+
+#### 3. Spaceship.svelte (Replaces demoSpaceship.svelte)
+```typescript
+<!-- Spaceship.svelte -->
+<script lang="ts">
+  import { T } from '@threlte/core';
+  import { useGltf } from '@threlte/extras';
+  import { shipState, stabilizationState } from '../stores';
+  import EngineEffects from './EngineEffects.svelte';
+  import WeaponEffects from './WeaponEffects.svelte';
+  
+  // Load the model
+  const gltf = useGltf('/demo/scene.gltf');
+</script>
+
+<T.Group position={[0, 0, -20]}>
+  <T.Group rotation.x={$shipState.rotation.x} 
+           rotation.y={$shipState.rotation.y} 
+           rotation.z={$shipState.rotation.z}>
+    <!-- Ship model -->
+    {#if $gltf}
+      <primitive object={$gltf.scene} />
+    {/if}
+    
+    <!-- Visual effects components -->
+    <EngineEffects 
+      enginePower={$shipState.enginePower}
+      afterburnerEffect={$shipState.afterburnerEffect}
+      isStabilizing={$stabilizationState.isAutoStabilizing}
+      stabilizationProgress={$stabilizationState.autoStabilizationProgress}
+    />
+    
+    <WeaponEffects />
+  </T.Group>
+</T.Group>
+```
+
+### 4. Implementation Strategy
+
+1. **Phase 1: Create Type Definitions and Constants**
+   - Extract interfaces from cameraController.ts
+   - Extract flight model constants to separate files
+   - Create proper documentation for all types
+
+2. **Phase 2: Create Svelte Stores**
+   - Implement core state stores (ship, controls, stabilization)
+   - Create derived stores for specific state slices
+   - Refactor existing code to use these stores
+
+3. **Phase 3: Extract Core System Logic**
+   - Move physics calculations from cameraController.ts to systems/physics.ts
+   - Extract camera logic to systems/camera.ts
+   - Move stabilization code from demoSpaceship.svelte and cameraController.ts to systems/stabilization.ts
+   - Extract HUD calculation logic to systems/hud.ts
+
+4. **Phase 4: Create New Component Structure**
+   - Build FlightScene as the new main component
+   - Create more focused child components
+   - Start with core functionality (physics, camera)
+   - Then implement visual effects (engine, weapons)
+   - Finally refactor the HUD into smaller components
+
+5. **Phase 5: Migrate Existing Features**
+   - Port each feature one at a time
+   - Start with core flight model
+   - Move on to auto-stabilization
+   - Then implement weapons systems
+   - Finally add advanced visual effects
+
+6. **Phase 6: Testing and Optimization**
+   - Test each refactored component
+   - Profile for performance issues
+   - Implement targeted optimizations
+   - Add proper error handling and fallbacks
+
+### 5. Performance Considerations for SvelteKit + Threlte
+
+- Use fine-grained reactivity to minimize unnecessary updates
+- Leverage `derived` stores to compute values only when dependencies change
+- Use `get(store)` in performance-critical animation loops instead of subscriptions
+- Split large Three.js scene updates into smaller, event-driven updates
+- Use the `svelte-cubed` pattern of having a central store for physics that drives the view
+
+```typescript
+// Performance optimization example
+useFrame((state, delta) => {
+  // Read from stores once at the beginning of the frame
+  const currentShipState = get(shipState);
+  const currentControls = get(controlState);
+  
+  // Perform calculations with local variables
+  const updatedState = updatePhysics(currentShipState, currentControls, delta);
+  
+  // Update store once at the end
+  shipState.set(updatedState);
+});
+```
+
+### 6. Timeline
+
+- Phase 1 (2 days): Create type definitions and constants
+- Phase 2 (3 days): Create Svelte stores
+- Phase 3 (5 days): Extract core system logic
+- Phase 4 (4 days): Create new component structure
+- Phase 5 (5 days): Migrate existing features
+- Phase 6 (3 days): Testing and optimization
+
+Total estimated time: 22 days
+
+### 7. Risks and Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Physics behavior changes during refactoring | Create comprehensive test suite for physics outcomes before refactoring |
+| Auto-stabilization regression | Implement behavior verification tests for stabilization system |
+| Performance issues with reactive updates | Use performance tracking and limit reactivity in critical loops |
+| Threlte version compatibility | Pin Threlte version during refactor, test with both current and latest |
+| Circular store dependencies | Design clear state hierarchy, use read-only derived stores for cross-dependencies |
+| HUD complexity | Break HUD into smaller components with targeted responsibilities |
+| Loss of functionality during transition | Implement one feature at a time, maintain working demo between refactors | 

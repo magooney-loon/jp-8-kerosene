@@ -1,0 +1,11 @@
+Model Information:
+* title:	Airplane
+* source:	https://sketchfab.com/3d-models/airplane-9287cf6247b44c83b4c3cdf1ea08d196
+* author:	Dark Blender (https://sketchfab.com/hgsthp999)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Airplane" (https://sketchfab.com/3d-models/airplane-9287cf6247b44c83b4c3cdf1ea08d196) by Dark Blender (https://sketchfab.com/hgsthp999) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

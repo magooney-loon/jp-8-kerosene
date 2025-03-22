@@ -1,0 +1,11 @@
+Model Information:
+* title:	Gorilla
+* source:	https://sketchfab.com/3d-models/gorilla-4cace1a21e33412480be8dcef08fbc96
+* author:	ChimpThe Pimp (https://sketchfab.com/YourBoy2.0)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Gorilla" (https://sketchfab.com/3d-models/gorilla-4cace1a21e33412480be8dcef08fbc96) by ChimpThe Pimp (https://sketchfab.com/YourBoy2.0) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

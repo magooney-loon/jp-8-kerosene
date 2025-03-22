@@ -1,0 +1,8 @@
+Model Information:
+* title:	Birds
+* source:	https://sketchfab.com/3d-models/birds-3a9bb97be78944f9bffc23fb25c2154e
+* author:	Zacxophone (https://sketchfab.com/Zacxophone)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
